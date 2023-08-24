@@ -1,0 +1,16 @@
+[package]
+name = "cmdsetu-rs"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+mirai_j4rs = { path = "/home/leart/Works/Mirai/MiraiRS/rust_side/mirai_j4rs" }
+lazy_static = "*"
+reqwest = { version = "*", features = ["json"] }
+tokio = { version = "*", features = ["full"] }
+serde="*"
+serde_json = "*"
+futures="*"
+toml = "*"
