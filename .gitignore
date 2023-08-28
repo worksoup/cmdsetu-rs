@@ -1,3 +1,11 @@
 /target
 config.toml
 Cargo.lock
+android_phone.json
+device.json
+KFCFactory.json
+libt544-enc-linux-x64.so
+/cache
+.vscode/
+pictures/
+libmirai_j4rs.so
