@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-mirai_j4rs = { path = "/home/leart/Works/Mirai/MiraiRS/rust_side/mirai_j4rs" }
+mirai_j4rs = { path = "../MiraiRS/rust_side/mirai_j4rs" }
 lazy_static = "*"
 reqwest = { version = "0.11", features = ["json"] }
 tokio = { version = "1.32", features = ["full"] }
@@ -16,10 +16,11 @@ toml = "0.7"
 ctrlc = "3.4"
 regex = "1.9"
 chinese-number = "0.7"
-rand = "0.8.5"
+rand = "0.8"
 utf8_slice = "1.0"
 thread_local = "1.1"
 trauma = "2.2"
 tokio-stream = "*"
 futures = "*"
-url="2.4"
+url = "2.4"
+strfmt = "*"

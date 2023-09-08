@@ -9,3 +9,5 @@ libt544-enc-linux-x64.so
 .vscode/
 pictures/
 libmirai_j4rs.so
+env_config.toml
+.idea/
