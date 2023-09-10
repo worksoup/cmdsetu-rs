@@ -2,8 +2,27 @@
 #![feature(async_closure)]
 #![feature(let_chains)]
 #![feature(lint_reasons)]
+
 mod prelude;
+
 use prelude::*;
+
+use futures::{
+    future::join_all,
+    stream::{FuturesUnordered, StreamExt},
+};
+use lazy_static::lazy_static;
+use rand::Rng;
+use regex::Regex;
+use reqwest::Client;
+use std::{
+    collections::HashMap,
+    fs,
+    path::{Path, PathBuf},
+};
+use mirai_j4rs::message::{RockPaperScissors, SingleMessage};
+use strfmt::strfmt;
+use tokio::{io::AsyncWriteExt, join, select, sync::Mutex};
 lazy_static! {
     static ref CONFIG: Config =
         toml::from_str(fs::read_to_string("./config.toml").unwrap().as_str()).unwrap();
@@ -16,13 +35,15 @@ async fn main() {
         Member,
         Mutex<HashMap<PathBuf, MessageChain>>,
     )>();
+    let (ctrlc_tx, mut ctrlc_rx) = futures::channel::mpsc::unbounded();
     let ql_tx = Box::leak(Box::new(ql_tx));
     let rx = Box::leak(Box::new(Regex::new(&CONFIG.cmn_rx).unwrap()));
     println!(
         "-- {:?}, \n-- {:?}",
         CONFIG.prem.groups, CONFIG.prem.members
     );
-    let bot = BotBuilder::new()
+    let config_dir = Path::new(".");
+    let bot = BotBuilder::new(config_dir)
         .id(CONFIG.bot.bot_id)
         .password(CONFIG.bot.bot_passwd.clone())
         .file_based_device_info(None)
@@ -38,7 +59,8 @@ async fn main() {
                 && CONFIG.prem.members.contains(&sender.get_id())
             {
                 let msg = event.get_message().to_content();
-                println!("获取到消息：{}", msg);
+                let rps = RockPaperScissors::random();
+                group.send_message(rps);
                 let caps = rx.captures(&msg);
                 if let Some(caps) = caps {
                     match rxcap(caps) {
@@ -56,10 +78,10 @@ async fn main() {
     let listener_for_group_message_event = event_channel.subscribe_always(&on_group_message_event);
     let send_image_task = async {
         while let Some((
-            group,
-            _sender, //私发功能要用来着，但是懒得写了，又不是不能用。
-            msgs_m,
-        )) = lq_rx.next().await
+                           group,
+                           _sender, //私发功能要用来着，但是懒得写了，又不是不能用。
+                           msgs_m,
+                       )) = lq_rx.next().await
         {
             for (filepath, msg) in &*msgs_m.lock().await {
                 if let Ok(_) = filepath.metadata() {
@@ -76,7 +98,7 @@ async fn main() {
     };
     let tasks = Mutex::new(FuturesUnordered::new());
     let download_task = async {
-        let client: Client = reqwest::Client::new();
+        let client: Client = Client::new();
         while let Some(data) = ql_rx.next().await {
             println!("{:?}", data.2);
             use trauma::download::Download;
@@ -132,13 +154,13 @@ async fn main() {
                                             tmp_path.push(&filename);
                                             tmp_path
                                         };
-                                        if let Err(_) = std::fs::metadata(&pic_path) {
+                                        if let Err(_) = fs::metadata(&pic_path) {
                                             downloads.push(Download::new(&url, &filename));
                                         } else if rand::thread_rng().gen_range(0..=20) > 3 {
                                             downloads.push(Download::new(&url, &filename));
                                         }
-                                        if let Err(_) = std::fs::metadata(&pic_meta_path) {
-                                            let _ = std::fs::create_dir_all(&pic_meta_path);
+                                        if let Err(_) = fs::metadata(&pic_meta_path) {
+                                            let _ = fs::create_dir_all(&pic_meta_path);
                                         }
                                         let job = async {
                                             let data_toml = toml::to_string(pic_data).unwrap();
@@ -224,7 +246,22 @@ async fn main() {
             if let Some(_) = tasks.next().await {}
         }
     };
-    join!(send_image_task, download_task, forward_task);
+    let ctrlc_task = async {
+        while let Some(_) = ctrlc_rx.next().await {
+            break;
+        }
+    };
+    ctrlc::set_handler(move || {
+        ctrlc_tx.unbounded_send(()).unwrap();
+    })
+        .unwrap();
+    select! {
+        _ = send_image_task =>{},
+        _ = download_task => {},
+        _ = forward_task => {},
+        _ = ctrlc_task => {}
+    }
+    ;
     listener_for_group_message_event.complete();
     println!("complete!");
 }

@@ -11,3 +11,4 @@ pictures/
 libmirai_j4rs.so
 env_config.toml
 .idea/
+base_config.toml
