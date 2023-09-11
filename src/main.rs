@@ -20,7 +20,6 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
-use mirai_j4rs::message::{RockPaperScissors, SingleMessage};
 use strfmt::strfmt;
 use tokio::{io::AsyncWriteExt, join, select, sync::Mutex};
 lazy_static! {
@@ -59,8 +58,6 @@ async fn main() {
                 && CONFIG.prem.members.contains(&sender.get_id())
             {
                 let msg = event.get_message().to_content();
-                let rps = RockPaperScissors::random();
-                group.send_message(rps);
                 let caps = rx.captures(&msg);
                 if let Some(caps) = caps {
                     match rxcap(caps) {
