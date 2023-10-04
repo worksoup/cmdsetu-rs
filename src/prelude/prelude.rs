@@ -1,7 +1,7 @@
 pub(crate) use mirai_j4rs::{
     contact::{
         bot::BotBuilder,
-        contact_trait::{ContactOrBotTrait, ContactTrait},
+        contact_trait::{ContactOrBotTrait, ContactTrait, SendMessageSupportedTrait},
         group::Group,
         Member,
     },

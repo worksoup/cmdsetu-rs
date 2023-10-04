@@ -258,7 +258,6 @@ async fn main() {
         _ = forward_task => {},
         _ = ctrlc_task => {}
     }
-    ;
     listener_for_group_message_event.complete();
     println!("complete!");
 }

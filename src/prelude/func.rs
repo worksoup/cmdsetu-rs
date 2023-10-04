@@ -2,7 +2,7 @@ use std::{collections::HashMap, error::Error, num::ParseIntError};
 
 use super::structs::{Config, ReqData};
 use chinese_number::{ChineseCountMethod, ChineseToNumber, ChineseToNumberError};
-use mirai_j4rs::contact::{contact_trait::ContactTrait, group::Group};
+use mirai_j4rs::contact::{contact_trait::SendMessageSupportedTrait, group::Group};
 use rand::Rng;
 use regex::Match;
 use strfmt::strfmt;
