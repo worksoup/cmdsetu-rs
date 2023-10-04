@@ -7,5 +7,5 @@ pub(crate) use mirai_j4rs::{
     },
     event::{event_trait::MessageEventTrait, message::GroupMessageEvent},
     message::{message_trait::MessageTrait, At, MessageChain, PlainText},
-    other::enums::MiraiProtocol,
+    utils::other::enums::MiraiProtocol,
 };
