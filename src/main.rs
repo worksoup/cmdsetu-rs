@@ -18,7 +18,7 @@ use reqwest::Client;
 use std::{
     collections::HashMap,
     fs,
-    path::{Path, PathBuf},
+    path::Path,
 };
 use strfmt::strfmt;
 use tokio::{io::AsyncWriteExt, join, select, sync::Mutex};
@@ -32,7 +32,7 @@ async fn main() {
     let (lq_tx, mut lq_rx) = futures::channel::mpsc::unbounded::<(
         Group,
         Member,
-        Mutex<HashMap<PathBuf, MessageChain>>,
+        Mutex<HashMap<&str, MessageChain>>,
     )>();
     let (ctrlc_tx, mut ctrlc_rx) = futures::channel::mpsc::unbounded();
     let ql_tx = Box::leak(Box::new(ql_tx));
@@ -201,7 +201,7 @@ async fn main() {
                                             let msgs_m = at.plus(PlainText::from(
                                                 strfmt(&CONFIG.tip_msg.tip_doc, &tip_doc).unwrap(),
                                             ));
-                                            map.lock().await.insert(pic_path, msgs_m);
+                                            map.lock().await.insert(pic_path.to_str().unwrap(), msgs_m);
                                         };
                                         jobs.push(job);
                                     }
