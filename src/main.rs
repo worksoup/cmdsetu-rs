@@ -82,7 +82,7 @@ async fn main() {
         {
             for (filepath, msg) in &*msgs_m.lock().await {
                 if let Ok(_) = filepath.metadata() {
-                    let image = group.upload_image_from_file(filepath);
+                    let image = group.upload_image_from_file(filepath.to_str().unwrap());
                     group.send_message(msg.plus(image));
                 } else {
                     let bad_msg = PlainText::from(CONFIG.err_msg.bad_dld.clone());
