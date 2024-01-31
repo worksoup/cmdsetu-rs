@@ -12,7 +12,6 @@ use futures::{
     stream::{FuturesUnordered, StreamExt},
 };
 use lazy_static::lazy_static;
-use mirai_j4rs::auth::bot_authorization::BotAuthorization;
 use rand::Rng;
 use regex::Regex;
 use reqwest::Client;
