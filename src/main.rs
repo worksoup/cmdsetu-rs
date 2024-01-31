@@ -12,6 +12,7 @@ use futures::{
     stream::{FuturesUnordered, StreamExt},
 };
 use lazy_static::lazy_static;
+use mirai_j4rs::auth::bot_authorization::BotAuthorization;
 use rand::Rng;
 use regex::Regex;
 use reqwest::Client;
@@ -42,11 +43,16 @@ async fn main() {
         CONFIG.prem.groups, CONFIG.prem.members
     );
     let config_dir = Path::new(".");
+    let bot_authorization = if !CONFIG.bot.bot_passwd.is_empty() {
+        BotAuthorization::Password(CONFIG.bot.bot_passwd.clone())
+    } else {
+        BotAuthorization::QrCode
+    };
     let bot = BotBuilder::new(config_dir)
         .id(CONFIG.bot.bot_id)
-        .password(CONFIG.bot.bot_passwd.clone())
+        .authorization(bot_authorization)
         .file_based_device_info(None)
-        .fix_protocol_version_fetch(MiraiProtocol::A, "latest".to_string())
+        .set_protocol(MiraiProtocol::M)
         .build();
     bot.login();
     let event_channel = bot.get_event_channel();
@@ -75,10 +81,10 @@ async fn main() {
     let listener_for_group_message_event = event_channel.subscribe_always(&on_group_message_event);
     let send_image_task = async {
         while let Some((
-                           group,
-                           _sender, //私发功能要用来着，但是懒得写了，又不是不能用。
-                           msgs_m,
-                       )) = lq_rx.next().await
+            group,
+            _sender, //私发功能要用来着，但是懒得写了，又不是不能用。
+            msgs_m,
+        )) = lq_rx.next().await
         {
             for (filepath, msg) in &*msgs_m.lock().await {
                 if let Ok(_) = filepath.metadata() {
@@ -251,7 +257,7 @@ async fn main() {
     ctrlc::set_handler(move || {
         ctrlc_tx.unbounded_send(()).unwrap();
     })
-        .unwrap();
+    .unwrap();
     select! {
         _ = send_image_task =>{},
         _ = download_task => {},

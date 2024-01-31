@@ -24,7 +24,7 @@ pub(crate) struct ReqData {
     pub(crate) size: Vec<String>,
     pub(crate) proxy: String,
     pub(crate) dateAfter: i64,
-    pub(crate) dateBefor: i64,
+    pub(crate) dateBefore: i64,
     pub(crate) dsc: bool,
     pub(crate) excludeAI: bool,
 }
