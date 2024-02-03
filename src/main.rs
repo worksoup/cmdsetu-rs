@@ -12,6 +12,7 @@ use futures::{
     stream::{FuturesUnordered, StreamExt},
 };
 use lazy_static::lazy_static;
+use mirai_j4rs::contact::EnvConfig;
 use rand::Rng;
 use regex::Regex;
 use reqwest::Client;
@@ -42,12 +43,16 @@ async fn main() {
         CONFIG.prem.groups, CONFIG.prem.members
     );
     let config_dir = Path::new(".");
+    let env_config: EnvConfig = toml::from_str(
+        &std::fs::read_to_string(Path::new(config_dir).join("env_config.toml")).unwrap(),
+    )
+    .unwrap();
     let bot_authorization = if !CONFIG.bot.bot_passwd.is_empty() {
         BotAuthorization::Password(CONFIG.bot.bot_passwd.clone())
     } else {
         BotAuthorization::QrCode
     };
-    let bot = BotBuilder::new(config_dir)
+    let bot = BotBuilder::new(&env_config)
         .id(CONFIG.bot.bot_id)
         .authorization(bot_authorization)
         .file_based_device_info(None)
