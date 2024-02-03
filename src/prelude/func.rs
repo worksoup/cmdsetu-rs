@@ -2,7 +2,7 @@ use std::{collections::HashMap, error::Error, num::ParseIntError};
 
 use super::structs::{Config, ReqData};
 use chinese_number::{ChineseCountMethod, ChineseToNumber, ChineseToNumberError};
-use mirai_j4rs::contact::{contact_trait::SendMessageSupportedTrait, group::Group};
+use mirai_j4rs::contact::{Group, SendMessageSupportedTrait};
 use rand::Rng;
 use regex::Match;
 use strfmt::strfmt;
@@ -65,26 +65,40 @@ pub(crate) fn rxcap(
     let mut r18 = 0; // 默认是非 r18 模式。
     let tags;
     let mut ai = true;
-    if let Some(hans_num) = cap.name("hans_num") && !hans_num.is_empty() {
+    if let Some(hans_num) = cap.name("hans_num")
+        && !hans_num.is_empty()
+    {
         pic_count = zh2num(hans_num.as_str())?;
-    } else if let Some(comn_num) = cap.name("comn_num")  && !comn_num.is_empty() {
+    } else if let Some(comn_num) = cap.name("comn_num")
+        && !comn_num.is_empty()
+    {
         pic_count = comn_num.as_str().parse()?;
-    } else if let Some(weak_num) = cap.name("weak_num") && !weak_num.is_empty() {
+    } else if let Some(weak_num) = cap.name("weak_num")
+        && !weak_num.is_empty()
+    {
         match weak_num.as_str() {
             "俩仨" => pic_count = rand::thread_rng().gen_range(1..=4),
             "俩" => pic_count = 2,
             "仨" => pic_count = 3,
             _ => (),
         }
-    } else if let Some(more) = cap.name("more") && !more.is_empty() {
+    } else if let Some(more) = cap.name("more")
+        && !more.is_empty()
+    {
         pic_count = rand::thread_rng().gen_range(5..=10);
-    } else if let Some(less) = cap.name("less") && !less.is_empty() {
+    } else if let Some(less) = cap.name("less")
+        && !less.is_empty()
+    {
         pic_count = rand::thread_rng().gen_range(1..=4);
     }
-    if let Some(nsfw) = cap.name("nsfw") && !nsfw.is_empty() {
+    if let Some(nsfw) = cap.name("nsfw")
+        && !nsfw.is_empty()
+    {
         r18 = 1;
     }
-    if let Some(ai_tmp) = cap.name("ai") && !ai_tmp.is_empty() {
+    if let Some(ai_tmp) = cap.name("ai")
+        && !ai_tmp.is_empty()
+    {
         ai = false;
     }
     tags = get_tags(cap.name("tags"));
