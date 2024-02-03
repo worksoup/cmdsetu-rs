@@ -12,7 +12,6 @@ use futures::{
     stream::{FuturesUnordered, StreamExt},
 };
 use lazy_static::lazy_static;
-use mirai_j4rs::contact::EnvConfig;
 use rand::Rng;
 use regex::Regex;
 use reqwest::Client;
@@ -56,7 +55,7 @@ async fn main() {
         .id(CONFIG.bot.bot_id)
         .authorization(bot_authorization)
         .file_based_device_info(None)
-        .set_protocol(MiraiProtocol::M)
+        .protocol(MiraiProtocol::M)
         .build();
     bot.login();
     let event_channel = bot.get_event_channel();
