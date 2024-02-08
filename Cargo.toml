@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 mirai_j4rs = { git = "https://github.com/worksoup/mirai_j4rs.git" }
+extra_test = { git = "https://github.com/worksoup/extra_test.git" }
 lazy_static = "1.4"
 reqwest = { version = "0.11", features = ["json"] }
 tokio = { version = "1.36", features = ["full"] }
@@ -24,3 +25,4 @@ tokio-stream = "*"
 futures = "0.3"
 url = "2.5"
 strfmt = "*"
+j4rs = "0.17"

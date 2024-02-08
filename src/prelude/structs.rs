@@ -2,8 +2,13 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
 pub(crate) struct BotInfo {
+    pub(crate) auth: String,
+    pub(crate) protocol: String,
+    pub(crate) version: String,
+    pub(crate) extra_test: bool,
     pub(crate) bot_id: i64,
     pub(crate) bot_passwd: String,
+    pub(crate) bot_passwd_md5: String,
 }
 #[derive(Deserialize, Serialize)]
 pub(crate) struct PremInfo {
@@ -77,6 +82,11 @@ pub(crate) struct TipMsg {
     pub(crate) tip_end: String,
 }
 #[derive(Deserialize, Serialize)]
+pub(crate) struct JvmConfig {
+    pub(crate) jars: Vec<String>,
+    pub(crate) opts: Vec<String>,
+}
+#[derive(Deserialize, Serialize)]
 pub(crate) struct Config {
     pub(crate) api_url: String,
     pub(crate) cmn_rx: String,
@@ -85,4 +95,5 @@ pub(crate) struct Config {
     pub(crate) default_req: ReqData,
     pub(crate) err_msg: ErrMsg,
     pub(crate) tip_msg: TipMsg,
+    pub(crate) jvm: JvmConfig,
 }

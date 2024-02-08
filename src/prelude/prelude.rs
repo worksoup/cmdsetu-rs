@@ -1,10 +1,16 @@
 pub(crate) use mirai_j4rs::{
     auth::bot_authorization::BotAuthorization,
     contact::{ContactOrBotTrait, ContactTrait, Group, Member, SendMessageSupportedTrait},
-    event::{event_trait::MessageEventTrait, message::GroupMessageEvent},
+    event::{FriendMessageEvent, GroupMessageEvent, MessageEventTrait},
     message::{
-        data::{At, MessageChain, PlainText},
-        MessageTrait,
+        data::{
+            At, Audio, MarketFaceAll, MessageChain, PlainText, RockPaperScissors, SingleMessage,
+        },
+        MarketFaceTrait, MessageTrait,
     },
-    utils::{bot_builder::BotBuilder, other::enums::MiraiProtocol, EnvConfig},
+    mj_base::env::GetInstanceTrait,
+    utils::{
+        bot_builder::BotBuilder, contact::file::AbsoluteFileFolderTrait,
+        other::enums::MiraiProtocol,
+    },
 };
