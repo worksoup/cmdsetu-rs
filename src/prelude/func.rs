@@ -1,11 +1,16 @@
-use std::{collections::HashMap, error::Error, num::ParseIntError};
+use std::{collections::HashMap, error::Error, fs, num::ParseIntError, path::PathBuf};
 
 use super::structs::{Config, ReqData};
+use crate::{prelude::*, CONFIG};
 use chinese_number::{ChineseCountMethod, ChineseToNumber, ChineseToNumberError};
-use mirai_j4rs::contact::{Group, SendMessageSupportedTrait};
+use futures::{channel::mpsc::UnboundedSender, future::join_all};
 use rand::Rng;
 use regex::Match;
+use reqwest::Response;
 use strfmt::strfmt;
+use tokio::{io::AsyncWriteExt, join, sync::Mutex};
+use trauma::{download::Download, downloader::Downloader};
+use url::Url;
 
 pub(crate) fn zh2num(s: &str) -> Result<i128, ChineseToNumberError> {
     let mut chars_mapping: HashMap<char, char> = HashMap::new();
@@ -58,6 +63,7 @@ pub(crate) fn zh2num(s: &str) -> Result<i128, ChineseToNumberError> {
     }
     ir.to_number(ChineseCountMethod::High)
 }
+
 pub(crate) fn rxcap(
     cap: regex::Captures<'_>,
 ) -> Result<(i128, u8, Vec<String>, bool), Box<dyn Error>> {
@@ -116,6 +122,7 @@ pub(crate) fn rxcap(
 
     Ok((pic_count, r18, tags, ai))
 }
+
 // 该函数不返回 None
 pub(crate) fn get_tags(cap: Option<Match<'_>>) -> Vec<String> {
     let mut tags = Vec::new();
@@ -200,6 +207,7 @@ pub(crate) fn build_req_data(
     req_data.excludeAI = ai;
     req_data
 }
+
 pub(crate) fn handle_err(err: Box<dyn Error>, group: &Group, config: &Config) {
     if let Some(err) = err.downcast_ref::<ChineseToNumberError>() {
         match err {
@@ -234,4 +242,104 @@ pub(crate) fn handle_err(err: Box<dyn Error>, group: &Group, config: &Config) {
             }
         }
     }
+}
+
+// task 干的事情：
+//      发送 post 请求。
+//      获取响应数据然后异步地下载图片和构造不包含图片的 MessageChain.
+pub(crate) async fn task(
+    lq_tx: UnboundedSender<(Group, Member, Mutex<HashMap<PathBuf, MessageChain>>)>,
+    downloader: Downloader,
+    group: Group,
+    member: Member,
+    req_data: ReqData,
+    send_post: Result<Response, reqwest::Error>,
+) {
+    if send_post.is_err() {
+        // 请求失败。
+        group.send_string(&CONFIG.err_msg.bad_req.clone());
+        return;
+    }
+    let resq_data: RespData = send_post.unwrap().json().await.unwrap();
+    let error = resq_data.error;
+    if !error.is_empty() {
+        let mut tmp = HashMap::new();
+        tmp.insert("msg".to_string(), error.clone());
+        // 响应失败。
+        group.send_string(&strfmt(&CONFIG.err_msg.bad_rsp.clone(), &tmp).unwrap());
+        return;
+    }
+    let data = resq_data.data;
+    // println!("响应图片数量：{}", resq_data_len);
+    if data.len() == 0 {
+        // 没有响应的数据。
+        group.send_string(&CONFIG.err_msg.bad_url.clone());
+        return;
+    }
+    if data.len() < req_data.num.into() {
+        let mut tmp = HashMap::new();
+        tmp.insert("n".to_string(), data.len().to_string());
+        // 请求的数量小于返回的数量。
+        group.send_string(&strfmt(&CONFIG.err_msg.bad_eql, &tmp).unwrap());
+    }
+
+    let mut pic_meta_path = std::env::current_dir().unwrap();
+    pic_meta_path.push("pictures");
+    pic_meta_path.push("metadata");
+
+    let map = Mutex::new(HashMap::new());
+
+    let mut jobs = Vec::new();
+    let mut downloads = Vec::new();
+
+    for pic_data in &data {
+        let url = Url::parse(&pic_data.urls.original).unwrap();
+        let filename = url.path_segments().unwrap().last().unwrap().to_string();
+
+        let mut pic_path = std::env::current_dir().unwrap();
+        pic_path.push("pictures");
+        pic_path.push(&filename);
+
+        if fs::metadata(&pic_path).is_err() {
+            downloads.push(Download::new(&url, &filename));
+        } else if rand::thread_rng().gen_range(0..=20) > 3 {
+            downloads.push(Download::new(&url, &filename));
+        }
+        if fs::metadata(&pic_meta_path).is_err() {
+            let _ = fs::create_dir_all(&pic_meta_path);
+        }
+        let job = async {
+            let data_toml = toml::to_string(pic_data).unwrap();
+            let mut path = pic_meta_path.clone();
+            path.push(filename + ".toml");
+            let mut file = tokio::fs::File::create(&path).await.unwrap();
+            file.write_all(data_toml.as_bytes()).await.unwrap();
+            let tip_doc = {
+                let mut tip_doc = HashMap::new();
+                tip_doc.insert("title".to_string(), pic_data.title.clone());
+                tip_doc.insert("pid".to_string(), pic_data.pid.to_string());
+                tip_doc.insert("author".to_string(), pic_data.author.clone());
+                tip_doc.insert("uid".to_string(), pic_data.uid.to_string());
+                tip_doc.insert("tags".to_string(), std::format!("{:?}", pic_data.tags));
+                tip_doc.insert("is_Ai".to_string(), {
+                    match pic_data.aiType {
+                        1 => "否".to_string(),
+                        2 => "是".to_string(),
+                        _ => "存疑".to_string(),
+                    }
+                });
+                tip_doc
+            };
+            let msgs_m = At::new(member.get_id()).plus(PlainText::from(
+                strfmt(&CONFIG.tip_msg.tip_doc, &tip_doc).unwrap(),
+            ));
+            map.lock().await.insert(pic_path, msgs_m);
+        };
+        jobs.push(job);
+    }
+    // for tmp in &downloads {
+    //     println!("下载内容：{:?}", tmp);
+    // }
+    join!(join_all(jobs), downloader.download(&downloads));
+    let _ = lq_tx.unbounded_send((group, member, map));
 }

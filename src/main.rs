@@ -8,17 +8,12 @@ mod prelude;
 use prelude::*;
 
 use extra_test::ExtraTest;
-use futures::{
-    future::join_all,
-    stream::{FuturesUnordered, StreamExt},
-};
+use futures::stream::{FuturesUnordered, StreamExt};
 use lazy_static::lazy_static;
-use rand::Rng;
 use regex::Regex;
 use reqwest::Client;
 use std::{collections::HashMap, fs, path::PathBuf};
-use strfmt::strfmt;
-use tokio::{io::AsyncWriteExt, join, select, sync::Mutex};
+use tokio::{select, sync::Mutex};
 lazy_static! {
     static ref CONFIG: Config =
         toml::from_str(fs::read_to_string("./config.toml").unwrap().as_str()).unwrap();
@@ -70,6 +65,7 @@ fn determine_auth(bot: &BotInfo) -> BotAuthorization {
         auto(bot)
     }
 }
+
 fn determine_protocol(protocol: &str) -> MiraiProtocol {
     match protocol {
         "A" => MiraiProtocol::A,
@@ -83,6 +79,7 @@ fn determine_protocol(protocol: &str) -> MiraiProtocol {
         }
     }
 }
+
 #[tokio::main]
 async fn main() {
     let (ql_tx, mut ql_rx) = futures::channel::mpsc::unbounded();
@@ -146,10 +143,10 @@ async fn main() {
             for (filepath, msg) in &*msgs_m.lock().await {
                 if let Ok(_) = filepath.metadata() {
                     let image = group.upload_image_from_file(filepath.to_str().unwrap());
-                    group.send_message(msg.plus(image));
+                    group.send_message(&msg.plus(image));
                 } else {
                     let bad_msg = PlainText::from(CONFIG.err_msg.bad_dld.clone());
-                    group.send_message(msg.plus(bad_msg));
+                    group.send_message(&msg.plus(bad_msg));
                 }
             }
             // 发送完毕。
@@ -159,145 +156,20 @@ async fn main() {
     let tasks = Mutex::new(FuturesUnordered::new());
     let download_task = async {
         let client: Client = Client::new();
-        while let Some(data) = ql_rx.next().await {
-            println!("{:?}", data.2);
-            use trauma::download::Download;
+        while let Some((group, member, req_data)) = ql_rx.next().await {
+            println!("{:?}", req_data);
             use trauma::downloader::DownloaderBuilder;
-            use url::Url;
             let mut pic_dir = std::env::current_dir().unwrap();
             pic_dir.push("pictures");
             let downloader = DownloaderBuilder::new().directory(pic_dir).build();
-            let send_post = client.post(&CONFIG.api_url).json(&data.2).send();
+            let send_post = client.post(&CONFIG.api_url).json(&req_data).send();
             let lq_tx = lq_tx.clone();
             // task 干的事情：
             //      发送 post 请求。
             //      获取响应数据然后异步地下载图片和构造不包含图片的 MessageChain.
-            let task = async move || {
-                match send_post.await {
-                    Ok(resq) => {
-                        if let Ok(resq_data) = resq.json::<RespData>().await {
-                            if resq_data.error.is_empty() {
-                                let resq_data_len = resq_data.data.len();
-                                // println!("响应图片数量：{}", resq_data_len);
-                                if resq_data_len > 0 {
-                                    if resq_data_len < data.2.num.into() {
-                                        let n = {
-                                            let mut n = HashMap::new();
-                                            n.insert("n".to_string(), resq_data_len.to_string());
-                                            n
-                                        };
-                                        // 请求的数量小于返回的数量。
-                                        data.0.send_string(
-                                            &strfmt(&CONFIG.err_msg.bad_eql, &n).unwrap(),
-                                        );
-                                    }
-                                    let mut downloads = Vec::new();
-                                    let pic_meta_path = {
-                                        let mut tmp_path = std::env::current_dir().unwrap();
-                                        tmp_path.push("pictures");
-                                        tmp_path.push("metadata");
-                                        tmp_path
-                                    };
-                                    let map = Mutex::new(HashMap::new());
-                                    let mut jobs = Vec::new();
-                                    for pic_data in &resq_data.data {
-                                        let url = Url::parse(&pic_data.urls.original).unwrap();
-                                        let filename = url
-                                            .path_segments()
-                                            .unwrap()
-                                            .last()
-                                            .unwrap()
-                                            .to_string();
-                                        let pic_path = {
-                                            let mut tmp_path = std::env::current_dir().unwrap();
-                                            tmp_path.push("pictures");
-                                            tmp_path.push(&filename);
-                                            tmp_path
-                                        };
-                                        if let Err(_) = fs::metadata(&pic_path) {
-                                            downloads.push(Download::new(&url, &filename));
-                                        } else if rand::thread_rng().gen_range(0..=20) > 3 {
-                                            downloads.push(Download::new(&url, &filename));
-                                        }
-                                        if let Err(_) = fs::metadata(&pic_meta_path) {
-                                            let _ = fs::create_dir_all(&pic_meta_path);
-                                        }
-                                        let job = async {
-                                            let data_toml = toml::to_string(pic_data).unwrap();
-                                            let mut path = pic_meta_path.clone();
-                                            path.push(filename + ".toml");
-                                            let mut file =
-                                                tokio::fs::File::create(&path).await.unwrap();
-                                            file.write_all(data_toml.as_bytes()).await.unwrap();
-                                            let at = At::new(data.1.get_id());
-                                            let tip_doc = {
-                                                let mut tip_doc = HashMap::new();
-                                                tip_doc.insert(
-                                                    "title".to_string(),
-                                                    pic_data.title.clone(),
-                                                );
-                                                tip_doc.insert(
-                                                    "pid".to_string(),
-                                                    pic_data.pid.to_string(),
-                                                );
-                                                tip_doc.insert(
-                                                    "author".to_string(),
-                                                    pic_data.author.clone(),
-                                                );
-                                                tip_doc.insert(
-                                                    "uid".to_string(),
-                                                    pic_data.uid.to_string(),
-                                                );
-                                                tip_doc.insert(
-                                                    "tags".to_string(),
-                                                    std::format!("{:?}", pic_data.tags),
-                                                );
-                                                tip_doc.insert("is_Ai".to_string(), {
-                                                    match pic_data.aiType {
-                                                        1 => "否".to_string(),
-                                                        2 => "是".to_string(),
-                                                        _ => "存疑".to_string(),
-                                                    }
-                                                });
-                                                tip_doc
-                                            };
-                                            let msgs_m = at.plus(PlainText::from(
-                                                strfmt(&CONFIG.tip_msg.tip_doc, &tip_doc).unwrap(),
-                                            ));
-                                            map.lock().await.insert(pic_path, msgs_m);
-                                        };
-                                        jobs.push(job);
-                                    }
-                                    // for tmp in &downloads {
-                                    //     println!("下载内容：{:?}", tmp);
-                                    // }
-                                    join!(join_all(jobs), downloader.download(&downloads));
-                                    let _ = lq_tx.unbounded_send((data.0, data.1, map));
-                                } else {
-                                    // 没有响应的数据。
-                                    data.0.send_string(&CONFIG.err_msg.bad_url.clone());
-                                }
-                            } else {
-                                let bad_rsp_msg = {
-                                    let mut tmp = HashMap::new();
-                                    tmp.insert("msg".to_string(), resq_data.error.clone());
-                                    tmp
-                                };
-                                // 响应失败。
-                                data.0.send_string(
-                                    &strfmt(&CONFIG.err_msg.bad_rsp.clone(), &bad_rsp_msg).unwrap(),
-                                );
-                            }
-                        }
-                    }
-                    Err(_) => {
-                        // 请求失败。
-                        data.0.send_string(&CONFIG.err_msg.bad_req.clone());
-                    }
-                };
-            };
+            let task = task(lq_tx, downloader, group, member, req_data, send_post.await);
             let tasks = tasks.lock().await;
-            tasks.push(task());
+            tasks.push(task);
         }
     };
     let forward_task = async {
